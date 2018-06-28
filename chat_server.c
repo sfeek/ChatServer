@@ -193,6 +193,7 @@ void *handle_client(void *arg)
 {
 	char buff_out[MAX_BUFFER_LENGTH];
 	char buff_in[MAX_BUFFER_LENGTH];
+    char buff_tmp[MAX_BUFFER_LENGTH];
 	int rlen;
 	char *cmp[MAX_COMPARES];
 	int i;
@@ -448,7 +449,15 @@ void *handle_client(void *arg)
 							param = strtok(NULL, " ");
 							if(param)
 							{
-								sprintf(buff_out,"\x1B[33mMATH\x1B[37m  %s = %f\r\n", param, te_interp(param,0));
+								buff_tmp[0]=0;
+								while(param != NULL)
+								{
+									strcat(buff_tmp, " ");
+									strcat(buff_tmp, param);
+									param = strtok(NULL, " ");
+								}
+	
+								sprintf(buff_out,"\x1B[33mMATH\x1B[37m  %s = %f\r\n", buff_tmp, te_interp(buff_tmp,0));
 								send_message_self(buff_out, cli->connfd);
 							}
 							else
