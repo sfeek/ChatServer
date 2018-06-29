@@ -11,7 +11,7 @@ Then start
 `./chat_server`
 
 ## Features
-* Accept multiple client (max 100)
+* Accept multiple clients (up to 100 by default)
 * Name and rename users
 * Send private messages
 * Allows for Multiple Rooms
@@ -30,3 +30,5 @@ Then start
 | \math         | [expression]          | Math in the terminal                |
 | \room         | [room_name]           | Join another room                   |
 | \time         |                       | Show current server time            |
+| \echo         | [on/off]              | Turn local echo on/off              |
+| \me           | [message]             | Emote                               |

@@ -1,6 +1,5 @@
 /*
- * Authors: 		Dinux, Shane Feek
- * Description:		Simple chatroom in C
+ * Description:		Simple multi-room chat server written in C
  * Version:		2.0
  *
  */
@@ -30,7 +29,7 @@
 #define KCYN  "\x1B[36m"
 #define KWHT  "\x1B[37m"
 
-#define MAX_COMPARES 12 /* Maximum number of compare strings */
+#define MAX_COMPARES 13 /* Maximum number of compare strings */
 #define MAX_COMPARE_LENGTH 20 /* Set for length of maximum compare string */
 #define MAX_NAME_LENGTH 32 /* Max name length */
 #define MAX_CLIENTS	100 /* Max number of clients */
@@ -47,6 +46,7 @@ typedef struct
 	int uid;					/* Client unique identifier */
 	char name[MAX_NAME_LENGTH];	/* Client name */
 	char room[MAX_NAME_LENGTH]; /* Client room */
+	int echo;					/* Echo status */
 } client_t;
 
 client_t *clients[MAX_CLIENTS];
@@ -115,16 +115,36 @@ void send_message_all(char *s,char *room)
 		{
 			if (!strcicmp(clients[i]->room,room))
 			{
-				if (write(clients[i]->connfd, s, strlen(s)) != strlen(s)) printf("\x1B[34mMessage failed to send %d\x1B[37m\n",clients[i]->uid);
+				if (write(clients[i]->connfd, s, strlen(s))!=strlen(s)) continue;
 			}
 		}
 	}
 }
 
+/* Send message to all clients in the same room except yourself */
+void send_message_except_self(char *s,char *room,int uid)
+{
+	int i;
+	for(i=0;i<MAX_CLIENTS;i++)
+	{
+		if(clients[i])
+		{
+			if (!strcicmp(clients[i]->room,room))
+			{
+				if (clients[i]->uid != uid)
+				{
+					if (write(clients[i]->connfd, s, strlen(s))!=strlen(s)) continue;
+				}
+			}
+		}
+	}
+}
+
+
 /* Send message to sender */
 void send_message_self(const char *s, int connfd)
 {
-	if (write(connfd, s, strlen(s)) != strlen(s)) printf("\x1B[34mSelf message failed to send\x1B[37m\n");
+	if (write(connfd, s, strlen(s))!=strlen(s)) return;
 }
 
 /* Send message to specific client, regardless of room */
@@ -137,7 +157,7 @@ void send_message_client(char *s, int uid)
 		{
 			if(clients[i]->uid == uid)
 			{
-				if (write(clients[i]->connfd, s, strlen(s)) != strlen(s)) printf("\x1B[34mMessage failed to send %d\x1B[37m\n",clients[i]->uid);
+				if (write(clients[i]->connfd, s, strlen(s))!=strlen(s)) continue;
 			}
 		}
 	}
@@ -178,14 +198,27 @@ void send_active_clients_room(int connfd,char *room)
 	}
 }
 
-/* Print ip address */
-void print_client_addr(struct sockaddr_in addr)
+
+/* Show Help */
+void send_help(int connfd)
 {
-	printf("%d.%d.%d.%d\n",
-		addr.sin_addr.s_addr & 0xFF,
-		(addr.sin_addr.s_addr & 0xFF00)>>8,
-		(addr.sin_addr.s_addr & 0xFF0000)>>16,
-		(addr.sin_addr.s_addr & 0xFF000000)>>24);
+	char buff_out[MAX_BUFFER_LENGTH];
+
+	buff_out[0] = '\0';
+	strcat(buff_out, "\r\n\x1B[33m     **** Commands ****\r\n");
+	strcat(buff_out, "\x1B[33m\\quit\x1B[37m     Quit chatroom\r\n");
+	strcat(buff_out, "\x1B[33m\\me\x1B[37m       <message> Emote\r\n");
+	strcat(buff_out, "\x1B[33m\\ping\x1B[37m     Server test\r\n");
+	strcat(buff_out, "\x1B[33m\\nick\x1B[37m     <name> Change nickname\r\n");
+	strcat(buff_out, "\x1B[33m\\pm\x1B[37m       <name> <message> Send private message\r\n");
+	strcat(buff_out, "\x1B[33m\\who\x1B[37m      Show active clients\r\n");
+	strcat(buff_out, "\x1B[33m\\help\x1B[37m     Show this help screen\r\n");
+	strcat(buff_out, "\x1B[33m\\room\x1B[37m     <room_name> Move to another room or show who is in the current room\r\n");
+	strcat(buff_out, "\x1B[33m\\time\x1B[37m     Show the current server time\r\n");
+	strcat(buff_out, "\x1B[33m\\math\x1B[37m     <expression> Evaluate a math expression\r\n");
+	strcat(buff_out, "\x1B[33m\\echo\x1B[37m     <on/off> Set local echo\r\n\r\n");
+
+	send_message_self(buff_out, connfd);
 }
 
 /* Handle all communication with the client */
@@ -194,6 +227,7 @@ void *handle_client(void *arg)
 	char buff_out[MAX_BUFFER_LENGTH];
 	char buff_in[MAX_BUFFER_LENGTH];
     char buff_tmp[MAX_BUFFER_LENGTH];
+    char buff_banner[2048];
 	int rlen;
 	char *cmp[MAX_COMPARES];
 	int i;
@@ -215,15 +249,32 @@ void *handle_client(void *arg)
 	strcpy(cmp[7],"\\room");
 	strcpy(cmp[8],"\\time");
 	strcpy(cmp[9],"\\math");
+	strcpy(cmp[10],"\\echo");
 
 	/* Add one to the client counter */
 	cli_count++;
 	client_t *cli = (client_t *)arg;
 
-	printf("\x1B[33mACCEPT\x1B[37m ");
-	print_client_addr(cli->addr);
+	buff_banner[0] = '\0';
+	strcat(buff_banner,"\x1B[33m __      __       .__                                  __             ________               __   /\\       \r\n");
+	strcat(buff_banner,"/  \\    /  \\ ____ |  |   ____  ____   _____   ____   _/  |_  ____    /  _____/  ____   ____ |  | _)/ ______\r\n");
+	strcat(buff_banner,"\\   \\/\\/   // __ \\|  | _/ ___\\/  _ \\ /     \\_/ __ \\  \\   __\\/  _ \\  /   \\  ____/ __ \\_/ __ \\|  |/ / /  ___/\r\n");
+	strcat(buff_banner," \\        /\\  ___/|  |_\\  \\__(  <_> )  Y Y  \\  ___/   |  | (  <_> ) \\    \\_\\  \\  ___/\\  ___/|    <  \\___ \\ \r\n");
+	strcat(buff_banner,"  \\__/\\  /  \\___  >____/\\___  >____/|__|_|  /\\___  >  |__|  \\____/   \\______  /\\___  >\\___  >__|_ \\/____  >\r\n");
+	strcat(buff_banner,"       \\/       \\/          \\/            \\/     \\/                         \\/     \\/     \\/     \\/     \\/ \r\n");
+	strcat(buff_banner,"  ___ ___                             _________ .__            __  ._.                                     \r\n");
+	strcat(buff_banner," /   |   \\_____ ___  __ ____   ____   \\_   ___ \\|  |__ _____ _/  |_| |                                     \r\n");
+	strcat(buff_banner,"/    ~    \\__  \\\\  \\/ // __ \\ /    \\  /    \\  \\/|  |  \\\\__  \\\\   __\\ |                                     \r\n");
+	strcat(buff_banner,"\\    Y    // __ \\\\   /\\  ___/|   |  \\ \\     \\___|   Y  \\/ __ \\|  |  \\|                                     \r\n");
+	strcat(buff_banner," \\___|_  /(____  /\\_/  \\___  >___|  /  \\______  /___|  (____  /__|  __                                     \r\n");
+	strcat(buff_banner,"       \\/      \\/          \\/     \\/          \\/     \\/     \\/      \\/                                     \x1B[37m\r\n");
 
-	sprintf(buff_out, "\x1B[33mJOIN, WELCOME\x1B[37m %s\r\n", cli->name);
+	strcat(buff_banner,"\r\nCreated 2018 by Shane Feek. Tim Smith & Yorick de Wid contributors.\r\n");
+
+	send_message_self(buff_banner,cli->connfd);
+	send_help(cli->connfd);
+	
+	sprintf(buff_out,"\r\n\r\n\x1B[33mJOIN, WELCOME\x1B[37m %s\r\n\r\n", cli->name);
 	send_message_all(buff_out,cli->room);
 
 	/* Receive input from client */
@@ -256,7 +307,7 @@ void *handle_client(void *arg)
 
 						case 1: /* Ping */
 						{
-							send_message_self("\x1B[33mPONG\x1B[37m\r\n", cli->connfd);
+							send_message_self("\r\n\x1B[33mPONG\x1B[37m\r\n\r\n", cli->connfd);
 							break;
 						}
 
@@ -276,7 +327,7 @@ void *handle_client(void *arg)
 									{
 										if (!strcicmp(clients[x]->name,param)) 
 										{
-											send_message_self("\x1B[33mNAME ALREADY EXISTS\x1B[37m\r\n", cli->connfd);
+											send_message_self("\r\n\x1B[33mNAME ALREADY EXISTS\x1B[37m\r\n\r\n", cli->connfd);
 											used=1;
 										}
 									}
@@ -288,13 +339,13 @@ void *handle_client(void *arg)
 								/* Change the Name */
 								char *old_name = strdup(cli->name);
 								strcpy(cli->name, param);
-								sprintf(buff_out, "\x1B[33mRENAME\x1B[37m %s TO %s\r\n", old_name, cli->name);
+								sprintf(buff_out, "\r\n\x1B[33mRENAME\x1B[37m %s TO %s\r\n\r\n", old_name, cli->name);
 								free(old_name);
 								send_message_all(buff_out,cli->room);
 							}
 							else
 							{
-								send_message_self("\x1B[33mNAME CANNOT BE NULL\x1B[37m\r\n", cli->connfd);
+								send_message_self("\r\n\x1B[33mNAME CANNOT BE NULL\x1B[37m\r\n\r\n", cli->connfd);
 							}
 							break;
 						}
@@ -317,7 +368,7 @@ void *handle_client(void *arg)
 								/* Check if a valid user was chosen */
 								if (uid == -1)
 								{
-									sprintf(buff_out, "\x1B[33mUNKNOWN USER\x1B[37m - [%s]\r\n", param);
+									sprintf(buff_out, "\r\n\x1B[33mUNKNOWN USER\x1B[37m - [%s]\r\n\r\n", param);
 									send_message_self(buff_out, cli->connfd);
 									break;
 								} 
@@ -338,21 +389,23 @@ void *handle_client(void *arg)
 								}
 								else
 								{
-									send_message_self("\x1B[33mMESSAGE CANNOT BE NULL\x1B[37m\r\n", cli->connfd);
+									send_message_self("\r\n\x1B[33mMESSAGE CANNOT BE NULL\x1B[37m\r\n\r\n", cli->connfd);
 								}
 							}
 							else
 							{
-								send_message_self("\x1B[33mUSER CANNOT BE NULL\x1B[37m\r\n", cli->connfd);
+								send_message_self("\r\n\x1B[33mUSER CANNOT BE NULL\x1B[37m\r\n\r\n", cli->connfd);
 							}
 							break;
 						}
 
 						case 4: /* Who */
 						{
-							sprintf(buff_out, "\x1B[33mCLIENTS\x1B[37m %d\r\n", cli_count);
+							sprintf(buff_out, "\r\n\x1B[33mCLIENTS\x1B[37m %d\r\n", cli_count);
 							send_message_self(buff_out, cli->connfd);
 							send_active_clients(cli->connfd);
+							send_message_self("\r\n", cli->connfd);
+
 							break;
 						}
 
@@ -373,24 +426,14 @@ void *handle_client(void *arg)
 							}
 							else
 							{
-								send_message_self("\x1B[33mMESSAGE CANNOT BE NULL\x1B[37m\r\n", cli->connfd);
+								send_message_self("\r\n\x1B[33mMESSAGE CANNOT BE NULL\x1B[37m\r\n", cli->connfd);
 							}
 							break;
 						}
 
 						case 6: /* Help */
 						{
-							strcat(buff_out, "\x1B[32m\\quit\x1B[37m     Quit chatroom\r\n");
-							strcat(buff_out, "\x1B[32m\\me\x1B[37m       <message> Emote\r\n");
-							strcat(buff_out, "\x1B[32m\\ping\x1B[37m     Server test\r\n");
-							strcat(buff_out, "\x1B[32m\\nick\x1B[37m     <name> Change nickname\r\n");
-							strcat(buff_out, "\x1B[32m\\pm\x1B[37m       <name> <message> Send private message\r\n");
-							strcat(buff_out, "\x1B[32m\\who\x1B[37m      Show active clients\r\n");
-							strcat(buff_out, "\x1B[32m\\help\x1B[37m     Show this help screen\r\n");
-							strcat(buff_out, "\x1B[32m\\room\x1B[37m     <room_name> Move to another room or show who is in the current room\r\n");
-							strcat(buff_out, "\x1B[32m\\time\x1B[37m     Show the current server time\r\n");
-							strcat(buff_out, "\x1B[32m\\math\x1B[37m     <expression> Evaluate a math expression\r\n");
-							send_message_self(buff_out, cli->connfd);
+							send_help(cli->connfd);
 							break;
 						}
 
@@ -405,10 +448,10 @@ void *handle_client(void *arg)
 								/* Change the room */
 								char *old_room = strdup(cli->room);
 								strcpy(cli->room, param);
-								sprintf(buff_out, "\x1B[33mLEAVE %s[%s]\x1B[37m MOVED TO <%s>\r\n", colors[cli->uid % 4],cli->name, cli->room);
+								sprintf(buff_out, "\r\n\x1B[33mLEAVE %s[%s]\x1B[37m MOVED TO <%s>\r\n\r\n", colors[cli->uid % 4],cli->name, cli->room);
      							send_message_all(buff_out, old_room);
 
-								sprintf(buff_out, "\x1B[33mJOIN, WELCOME %s[%s]\x1B[37m\r\n",colors[cli->uid % 4], cli->name);
+								sprintf(buff_out, "\r\n\x1B[33mJOIN, WELCOME TO \x1B[37m<%s> %s[%s]\x1B[37m\r\n\r\n",cli->room,colors[cli->uid % 4], cli->name);
 								send_message_all(buff_out, cli->room);
 								free(old_room);
 							}
@@ -425,9 +468,10 @@ void *handle_client(void *arg)
 								}
 
 								/* Show clients in the room */
-								sprintf(buff_out, "\x1B[33mROOM NAME\x1B[37m <%s> | \x1B[33mCLIENTS\x1B[37m %d\r\n", cli->room, count);
+								sprintf(buff_out, "\r\n\x1B[33mROOM NAME\x1B[37m <%s> | \x1B[33mCLIENTS\x1B[37m %d\r\n", cli->room, count);
 								send_message_self(buff_out, cli->connfd);
 								send_active_clients_room(cli->connfd,cli->room);
+								send_message_self("\r\n", cli->connfd);
 							}
 							break;
 						}
@@ -439,7 +483,7 @@ void *handle_client(void *arg)
 
 							time (&rawtime);
 							timeinfo = localtime (&rawtime);
-							sprintf(buff_out, "\x1B[33mTIME\x1B[37m  %s", asctime(timeinfo));
+							sprintf(buff_out, "\r\n\x1B[33mTIME\x1B[37m  %s\r\n", asctime(timeinfo));
 							send_message_self(buff_out, cli->connfd);
 							break;
 						}
@@ -457,12 +501,25 @@ void *handle_client(void *arg)
 									param = strtok(NULL, " ");
 								}
 	
-								sprintf(buff_out,"\x1B[33mMATH\x1B[37m  %s = %f\r\n", buff_tmp, te_interp(buff_tmp,0));
+								sprintf(buff_out,"\r\n\x1B[33mMATH\x1B[37m  %s = %f\r\n\r\n", buff_tmp, te_interp(buff_tmp,0));
 								send_message_self(buff_out, cli->connfd);
 							}
 							else
 							{
-								send_message_self("\x1B[33mMATH MISSING EXPRESSION\x1B[37m\r\n", cli->connfd);
+								send_message_self("\r\n\x1B[33mMATH MISSING EXPRESSION\x1B[37m\r\n\r\n", cli->connfd);
+							}
+							break;
+						}
+
+						case 10: /* Echo */
+						{
+							param = strtok(NULL," ");
+							if(param)
+							{
+								if (!strcicmp(param,"on")) 
+									cli->echo = 1;
+								else
+									cli->echo = 0;
 							}
 							break;
 						}
@@ -472,7 +529,7 @@ void *handle_client(void *arg)
 			}
 
 			/* Look for bad command */
-			if (i>9) send_message_self("\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n", cli->connfd);
+			if (i>10) send_message_self("\r\n\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n\r\n", cli->connfd);
 			
 			/* Leave the loop if user chooses to quit */
 			if (quit) break;
@@ -481,13 +538,17 @@ void *handle_client(void *arg)
 		{
 			/* No Command, Send as message */
 			sprintf(buff_out, "%s<%s>[%s]\x1B[37m %s\r\n", colors[cli->uid % 4], cli->room, cli->name, buff_in);
-			send_message_all(buff_out,cli->room);
+			if (cli->echo) 
+				send_message_all(buff_out,cli->room);
+			else	
+				send_message_except_self(buff_out,cli->room,cli->uid);
 		}
+		sleep(1);
 	}
 
 	/* Close connection */
 	close(cli->connfd);
-	sprintf(buff_out, "\x1B[33mLEAVE, BYE\x1B[37m %s\r\n", cli->name);
+	sprintf(buff_out, "\r\n\x1B[33mLEAVE, BYE\x1B[37m %s\r\n\r\n", cli->name);
 	send_message_all(buff_out,cli->room);
 
 	/* Free comparison strings */
@@ -498,8 +559,6 @@ void *handle_client(void *arg)
 
 	/* Delete client from queue and yield thread */
 	queue_delete(cli->uid);
-	printf("\x1B[33mLEAVE\x1B[37m ");
-	print_client_addr(cli->addr);
 	free(cli);
 	cli_count--;
 	pthread_detach(pthread_self());
@@ -537,8 +596,6 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-	printf("\x1B[34m<[SERVER STARTED]>\x1B[37m\n");
-
 	/* Accept clients */
 	while(1)
 	{
@@ -548,10 +605,6 @@ int main(int argc, char *argv[]){
 		/* Check if max clients is reached */
 		if((cli_count+1) == MAX_CLIENTS)
 		{
-			printf("\x1B[34mMAX CLIENTS REACHED\x1B[37m\n");
-			printf("\x1B[34mREJECT\x1B[37m ");
-			print_client_addr(cli_addr);
-			printf("\n");
 			close(connfd);
 			continue;
 		}
@@ -570,6 +623,8 @@ int main(int argc, char *argv[]){
 				break;
 			}
 		}
+
+		cli->echo = 1;
 		sprintf(cli->name, "%d", cli->uid);
 		sprintf(cli->room, "Common");
 
