@@ -358,7 +358,8 @@ void *handle_client(void *arg)
 							{
 								/* Look up user ID */
 								int uid = -1;
-								for(int x=0;x<MAX_CLIENTS;x++)
+								int x;
+								for(x=0;x<MAX_CLIENTS;x++)
 								{
 									if(clients[x])
 									{
@@ -616,7 +617,8 @@ int main(int argc, char *argv[]){
 		cli->connfd = connfd;
 
 		/* Find next available client UID */
-		for(int i=0;i<MAX_CLIENTS;i++)
+		int i;
+		for(i=0;i<MAX_CLIENTS;i++)
 		{
 			if(!clients[i])
 			{
