@@ -578,7 +578,7 @@ int main(int argc, char *argv[]){
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	serv_addr.sin_port = htons(5000); 
+	serv_addr.sin_port = htons(6969); 
 
 	/* Ignore pipe signals */
 	signal(SIGPIPE, SIG_IGN);
