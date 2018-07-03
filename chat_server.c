@@ -1,5 +1,6 @@
 /*
  * Description:		Simple multi-room chat server written in C
+ * Shane Feek - This software is Public Domain
  * Version:		2.0
  *
  */
@@ -140,7 +141,6 @@ void send_message_except_self(char *s,char *room,int uid)
 	}
 }
 
-
 /* Send message to sender */
 void send_message_self(const char *s, int connfd)
 {
@@ -210,7 +210,7 @@ void send_help(int connfd)
 	strcat(buff_out, "\x1B[33m\\me\x1B[37m       <message> Emote\r\n");
 	strcat(buff_out, "\x1B[33m\\ping\x1B[37m     Server test\r\n");
 	strcat(buff_out, "\x1B[33m\\nick\x1B[37m     <name> Change nickname\r\n");
-	strcat(buff_out, "\x1B[33m\\pm\x1B[37m       <name> <message> Send private message\r\n");
+	strcat(buff_out, "\x1B[33m\\pm\x1B[37m       <name> <message> Send private message regardless of recipient room\r\n");
 	strcat(buff_out, "\x1B[33m\\who\x1B[37m      Show active clients\r\n");
 	strcat(buff_out, "\x1B[33m\\help\x1B[37m     Show this help screen\r\n");
 	strcat(buff_out, "\x1B[33m\\room\x1B[37m     <room_name> Move to another room or show who is in the current room\r\n");
@@ -255,19 +255,20 @@ void *handle_client(void *arg)
 	cli_count++;
 	client_t *cli = (client_t *)arg;
 
+	/* Show Banner */
 	buff_banner[0] = '\0';
 	strcat(buff_banner,"\x1B[33m __      __       .__                                  __             ________               __   /\\       \r\n");
-	strcat(buff_banner,"/  \\    /  \\ ____ |  |   ____  ____   _____   ____   _/  |_  ____    /  _____/  ____   ____ |  | _)/ ______\r\n");
-	strcat(buff_banner,"\\   \\/\\/   // __ \\|  | _/ ___\\/  _ \\ /     \\_/ __ \\  \\   __\\/  _ \\  /   \\  ____/ __ \\_/ __ \\|  |/ / /  ___/\r\n");
-	strcat(buff_banner," \\        /\\  ___/|  |_\\  \\__(  <_> )  Y Y  \\  ___/   |  | (  <_> ) \\    \\_\\  \\  ___/\\  ___/|    <  \\___ \\ \r\n");
-	strcat(buff_banner,"  \\__/\\  /  \\___  >____/\\___  >____/|__|_|  /\\___  >  |__|  \\____/   \\______  /\\___  >\\___  >__|_ \\/____  >\r\n");
-	strcat(buff_banner,"       \\/       \\/          \\/            \\/     \\/                         \\/     \\/     \\/     \\/     \\/ \r\n");
-	strcat(buff_banner,"  ___ ___                             _________ .__            __  ._.                                     \r\n");
-	strcat(buff_banner," /   |   \\_____ ___  __ ____   ____   \\_   ___ \\|  |__ _____ _/  |_| |                                     \r\n");
-	strcat(buff_banner,"/    ~    \\__  \\\\  \\/ // __ \\ /    \\  /    \\  \\/|  |  \\\\__  \\\\   __\\ |                                     \r\n");
-	strcat(buff_banner,"\\    Y    // __ \\\\   /\\  ___/|   |  \\ \\     \\___|   Y  \\/ __ \\|  |  \\|                                     \r\n");
-	strcat(buff_banner," \\___|_  /(____  /\\_/  \\___  >___|  /  \\______  /___|  (____  /__|  __                                     \r\n");
-	strcat(buff_banner,"       \\/      \\/          \\/     \\/          \\/     \\/     \\/      \\/                                     \x1B[37m\r\n");
+	strcat(buff_banner,"\x1B[33m/  \\    /  \\ ____ |  |   ____  ____   _____   ____   _/  |_  ____    /  _____/  ____   ____ |  | _)/ ______\r\n");
+	strcat(buff_banner,"\x1B[33m\\   \\/\\/   // __ \\|  | _/ ___\\/  _ \\ /     \\_/ __ \\  \\   __\\/  _ \\  /   \\  ____/ __ \\_/ __ \\|  |/ / /  ___/\r\n");
+	strcat(buff_banner,"\x1B[33m \\        /\\  ___/|  |_\\  \\__(  <_> )  Y Y  \\  ___/   |  | (  <_> ) \\    \\_\\  \\  ___/\\  ___/|    <  \\___ \\ \r\n");
+	strcat(buff_banner,"\x1B[33m  \\__/\\  /  \\___  >____/\\___  >____/|__|_|  /\\___  >  |__|  \\____/   \\______  /\\___  >\\___  >__|_ \\/____  >\r\n");
+	strcat(buff_banner,"\x1B[33m       \\/       \\/          \\/            \\/     \\/                         \\/     \\/     \\/     \\/     \\/ \r\n");
+	strcat(buff_banner,"\x1B[33m  ___ ___                             _________ .__            __  ._.                                     \r\n");
+	strcat(buff_banner,"\x1B[33m /   |   \\_____ ___  __ ____   ____   \\_   ___ \\|  |__ _____ _/  |_| |                                     \r\n");
+	strcat(buff_banner,"\x1B[33m/    ~    \\__  \\\\  \\/ // __ \\ /    \\  /    \\  \\/|  |  \\\\__  \\\\   __\\ |                                     \r\n");
+	strcat(buff_banner,"\x1B[33m\\    Y    // __ \\\\   /\\  ___/|   |  \\ \\     \\___|   Y  \\/ __ \\|  |  \\|                                     \r\n");
+	strcat(buff_banner,"\x1B[33m \\___|_  /(____  /\\_/  \\___  >___|  /  \\______  /___|  (____  /__|  __                                     \r\n");
+	strcat(buff_banner,"\x1B[33m       \\/      \\/          \\/     \\/          \\/     \\/     \\/      \\/                                     \x1B[37m\r\n");
 
 	strcat(buff_banner,"\r\nCreated 2018 by Shane Feek. Tim Smith & Yorick de Wid contributors.\r\n");
 

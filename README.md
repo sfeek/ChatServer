@@ -1,7 +1,7 @@
 Chat Server
 =
 
-There is currently no client available but any telnet client will do. Just connect to the server on the specified port and address. By default port 5000 is used.
+There is currently a chat client available but any telnet client will do. Just connect to the server on the specified port and address. By default port 5000 is used.
 
 ## Build
 Run GNU make in the repository
