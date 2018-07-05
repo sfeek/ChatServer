@@ -30,7 +30,7 @@
 #define KCYN  "\x1B[36m"
 #define KWHT  "\x1B[37m"
 
-#define MAX_COMPARES 13 /* Maximum number of compare strings */
+#define MAX_COMPARES 14 /* Maximum number of compare strings */
 #define MAX_COMPARE_LENGTH 20 /* Set for length of maximum compare string */
 #define MAX_NAME_LENGTH 32 /* Max name length */
 #define MAX_CLIENTS	100 /* Max number of clients */
@@ -216,6 +216,7 @@ void send_help(int connfd)
 	strcat(buff_out, "\x1B[33m\\room\x1B[37m     <room_name> Move to another room or show who is in the current room\r\n");
 	strcat(buff_out, "\x1B[33m\\time\x1B[37m     Show the current server time\r\n");
 	strcat(buff_out, "\x1B[33m\\math\x1B[37m     <expression> Evaluate a math expression\r\n");
+	strcat(buff_out, "\x1B[33m\\roll\x1B[37m     <die_sides> Roll dice\r\n");
 	strcat(buff_out, "\x1B[33m\\echo\x1B[37m     <on/off> Set local echo\r\n\r\n");
 
 	send_message_self(buff_out, connfd);
@@ -250,6 +251,7 @@ void *handle_client(void *arg)
 	strcpy(cmp[8],"\\time");
 	strcpy(cmp[9],"\\math");
 	strcpy(cmp[10],"\\echo");
+	strcpy(cmp[11],"\\roll");
 
 	/* Add one to the client counter */
 	cli_count++;
@@ -525,13 +527,41 @@ void *handle_client(void *arg)
 							}
 							break;
 						}
+
+                        case 11: /* Roll Dice */
+                        {
+                            char roll_out[50];
+                            int r = rand();
+
+                            param = strtok(NULL, " ");
+                            if(param)
+                            {
+                                int sides = atoi(param);
+                                sprintf(roll_out,"%d",(r % sides) + 1);
+
+                                sprintf(buff_out, "\r\n\x1B[33mDICE D%d\x1B[37m%s %s",sides,colors[cli->uid % 4], cli->name);
+                                while(param != NULL)
+                                {
+                                    strcat(buff_out, " rolled a ");
+                                    strcat(buff_out, roll_out);
+                                    param = strtok(NULL, " ");
+                                }
+                                strcat(buff_out, "\x1B[37m\r\n\r\n");
+                                send_message_all(buff_out,cli->room);
+                            }
+                            else
+                            {
+                                send_message_self("\r\n\x1B[33mNUMBER CANNOT BE NULL\x1B[37m\r\n", cli->connfd);
+                            }
+                            break;
+                        }
 					}
 					break;
 				}
 			}
 
 			/* Look for bad command */
-			if (i>10) send_message_self("\r\n\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n\r\n", cli->connfd);
+			if (i>11) send_message_self("\r\n\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n\r\n", cli->connfd);
 			
 			/* Leave the loop if user chooses to quit */
 			if (quit) break;
@@ -545,7 +575,6 @@ void *handle_client(void *arg)
 			else	
 				send_message_except_self(buff_out,cli->room,cli->uid);
 		}
-		sleep(1);
 	}
 
 	/* Close connection */
