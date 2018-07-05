@@ -32,3 +32,4 @@ Then start
 | \time         |                       | Show current server time            |
 | \echo         | [on/off]              | Turn local echo on/off              |
 | \me           | [message]             | Emote                               |
+| \roll         | [die_sides]           | Roll Dice                           |
