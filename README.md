@@ -1,7 +1,7 @@
 Chat Server
 =
 
-There is currently a chat client available but any telnet client will do. Just connect to the server on the specified port and address. By default port 5000 is used.
+There is currently a chat client available but any telnet client will do. Just connect to the server on the specified port and address. By default port 6969 is used.
 
 ## Build
 Run GNU make in the repository
@@ -16,6 +16,8 @@ Then start
 * Send private messages
 * Allows for Multiple Rooms
 * Perform basic math functions
+* Roll Dice
+* Emote
 
 ## Chat commands
 
