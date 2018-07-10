@@ -516,7 +516,7 @@ void *handle_client(void *arg)
 									param = strtok(NULL, " ");
 								}
 	
-								sprintf(buff_out,"\r\n\x1B[33mMATH\x1B[37m  %s = %f\r\n\r\n", buff_tmp, te_interp(buff_tmp,0));
+								sprintf(buff_out,"\r\n\x1B[33mMATH\x1B[37m  %s = %g\r\n\r\n", buff_tmp, te_interp(buff_tmp,0));
 								send_message_self(buff_out, cli->connfd);
 							}
 							else
