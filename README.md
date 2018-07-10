@@ -35,3 +35,4 @@ Then start
 | \echo         | [on/off]              | Turn local echo on/off              |
 | \me           | [message]             | Emote                               |
 | \roll         | [die_sides]           | Roll Dice                           |
+| \away         | [short_message]       | Set Away status                     |
