@@ -31,10 +31,10 @@
 #define KWHT  "\x1B[37m"
 
 #define MAX_COMPARES 14 /* Maximum number of compare strings */
-#define MAX_COMPARE_LENGTH 20 /* Set for length of maximum compare string */
+#define MAX_COMPARE_LENGTH 10 /* Set for length of maximum compare string */
 #define MAX_NAME_LENGTH 32 /* Max name length */
 #define MAX_CLIENTS	100 /* Max number of clients */
-#define MAX_BUFFER_LENGTH 1030 /* Max buffer size */
+#define MAX_BUFFER_LENGTH 1026 /* Max buffer size */
 #define MAX_SHORT_MESSAGE_LENGTH 256 /* Max length for a short essage */
 
 static unsigned int cli_count = 0;
@@ -46,10 +46,10 @@ typedef struct
 	struct sockaddr_in addr;				/* Client remote address */
 	int connfd;								/* Connection file descriptor */
 	int uid;								/* Client unique identifier */
-	char name[MAX_NAME_LENGTH];				/* Client name */
-	char room[MAX_NAME_LENGTH]; 			/* Client room */
+	char name[MAX_NAME_LENGTH+1];				/* Client name */
+	char room[MAX_NAME_LENGTH+1]; 			/* Client room */
 	int echo;								/* Echo status */
-	char status[MAX_SHORT_MESSAGE_LENGTH];	/* User Status 0 = present, 1 = idle, 2 = away*/
+	char status[MAX_SHORT_MESSAGE_LENGTH+1];	/* User Status 0 = present, 1 = idle, 2 = away*/
 } client_t;
 
 client_t *clients[MAX_CLIENTS];
@@ -205,8 +205,7 @@ void send_help(int connfd)
 {
 	char buff_out[MAX_BUFFER_LENGTH];
 
-	buff_out[0] = '\0';
-	strcat(buff_out, "\r\n\x1B[33m     **** Commands ****\r\n");
+	strcpy(buff_out, "\r\n\x1B[33m     **** Commands ****\r\n");
 	strcat(buff_out, "\x1B[33m\\quit\x1B[37m     Quit chatroom\r\n");
 	strcat(buff_out, "\x1B[33m\\me\x1B[37m       <message> Emote\r\n");
 	strcat(buff_out, "\x1B[33m\\ping\x1B[37m     Server test\r\n");
@@ -230,13 +229,13 @@ void *handle_client(void *arg)
 	char buff_out[MAX_BUFFER_LENGTH + 128];
 	char buff_in[MAX_BUFFER_LENGTH];
     char buff_tmp[MAX_BUFFER_LENGTH + 128];
-    char buff_banner[2048];
+	char buff_names[MAX_NAME_LENGTH+1];
+    char buff_banner[1500];
 	int rlen;
 	char *cmp[MAX_COMPARES];
 	int i;
 	char *param;
 	int quit=0;
-	int used;
 	int x;
 
 	 /* Comparison string array */
@@ -261,8 +260,7 @@ void *handle_client(void *arg)
 	client_t *cli = (client_t *)arg;
 
 	/* Show Banner */
-	buff_banner[0] = '\0';
-	strcat(buff_banner,"\x1B[33m __      __       .__                                  __             ________               __   /\\       \r\n");
+	strcpy(buff_banner,"\x1B[33m __      __       .__                                  __             ________               __   /\\       \r\n");
 	strcat(buff_banner,"\x1B[33m/  \\    /  \\ ____ |  |   ____  ____   _____   ____   _/  |_  ____    /  _____/  ____   ____ |  | _)/ ______\r\n");
 	strcat(buff_banner,"\x1B[33m\\   \\/\\/   // __ \\|  | _/ ___\\/  _ \\ /     \\_/ __ \\  \\   __\\/  _ \\  /   \\  ____/ __ \\_/ __ \\|  |/ / /  ___/\r\n");
 	strcat(buff_banner,"\x1B[33m \\        /\\  ___/|  |_\\  \\__(  <_> )  Y Y  \\  ___/   |  | (  <_> ) \\    \\_\\  \\  ___/\\  ___/|    <  \\___ \\ \r\n");
@@ -286,14 +284,10 @@ void *handle_client(void *arg)
 	/* Receive input from client */
 	while((rlen = read(cli->connfd, buff_in, MAX_BUFFER_LENGTH - 2))> 0)
 	{
-	    buff_in[rlen] = '\0';
-		buff_in[MAX_BUFFER_LENGTH-2] = '\0'; /* In case someone tries a buffer overflow */
-	    buff_out[0] = '\0';
-		strip_newline(buff_in);
-
-		/* Ignore empty buffer */
-		if(!strlen(buff_in)) continue;
-
+	    buff_in[rlen] = '\0'; /* Null Terminate the buffer */
+	    strip_newline(buff_in); /* Get rid of newline or carriage return */
+		if(!strlen(buff_in)) continue; /* Ignore empty buffer */
+		
 		/* Look for command tokens */
 		if(buff_in[0] == '\\')
 		{
@@ -318,34 +312,34 @@ void *handle_client(void *arg)
 							break;
 						}
 
-						case 2: /* Name */
+						case 2: /* Nick */
 						{
 							param = strtok(NULL, " ");
 							if(param)
 							{
 								/* Chop name if too long */
-								param[MAX_NAME_LENGTH]='\0';
+								strncpy(buff_names,param,MAX_NAME_LENGTH);
+								buff_names[MAX_NAME_LENGTH] = '\0';
 
-								used = 0;
 								/* Check for existing name */
 								for(x=0;x<MAX_CLIENTS;x++)
 								{
 									if(clients[x])
 									{
-										if (!strcicmp(clients[x]->name,param)) 
+										if (!strcicmp(clients[x]->name,buff_names)) 
 										{
 											send_message_self("\r\n\x1B[33mNAME ALREADY EXISTS\x1B[37m\r\n\r\n", cli->connfd);
-											used=1;
+											break;
 										}
 									}
 								}
 
 								/* Stop if name already used */
-								if (used) break;
+								if (x != MAX_CLIENTS) break;
 
 								/* Change the Name */
 								char *old_name = strdup(cli->name);
-								strcpy(cli->name, param);
+								strcpy(cli->name, buff_names);
 								sprintf(buff_out, "\r\n\x1B[33mRENAME\x1B[37m %s TO %s\r\n\r\n", old_name, cli->name);
 								free(old_name);
 								send_message_all(buff_out,cli->room);
@@ -360,10 +354,12 @@ void *handle_client(void *arg)
 						case 3: /* Private */
 						{
 							param = strtok(NULL, " ");
+							
 							if(param)
 							{
 								/* Chop name if too long */
-								param[MAX_NAME_LENGTH]='\0';
+								strncpy(buff_names,param,MAX_NAME_LENGTH);
+								buff_names[MAX_NAME_LENGTH]='\0';
 
 								/* Look up user ID */
 								int uid = -1;
@@ -372,14 +368,14 @@ void *handle_client(void *arg)
 								{
 									if(clients[x])
 									{
-										if (!strcicmp(clients[x]->name,param)) uid = clients[x]->uid;
+										if (!strcicmp(clients[x]->name,buff_names)) uid = clients[x]->uid;
 									}
 								}
 
 								/* Check if a valid user was chosen */
 								if (uid == -1)
 								{
-									sprintf(buff_out, "\r\n\x1B[33mUNKNOWN USER\x1B[37m - [%s]\r\n\r\n", param);
+									sprintf(buff_out, "\r\n\x1B[33mUNKNOWN USER\x1B[37m - [%s]\r\n\r\n", buff_names);
 									send_message_self(buff_out, cli->connfd);
 									break;
 								} 
@@ -424,19 +420,18 @@ void *handle_client(void *arg)
 						{
 							param = strtok(NULL, " ");
 							
-							/* Keep the message reasonable length */
-							param[MAX_SHORT_MESSAGE_LENGTH] = '\0';
-
 							if(param)
 							{
-								sprintf(buff_out, "%s*** %s",colors[cli->uid % 4], cli->name);
+								buff_tmp[0] = '\0';
 								while(param != NULL)
 								{
-									strcat(buff_out, " ");
-									strcat(buff_out, param);
+									strcat(buff_tmp, " ");
+									strcat(buff_tmp, param);
 									param = strtok(NULL, " ");
 								}
-								strcat(buff_out, " ***\x1B[37m\r\n");
+								buff_tmp[MAX_SHORT_MESSAGE_LENGTH+1]='\0'; 
+
+								sprintf(buff_out, "%s*** %s %s ***\x1B[37m\r\n",colors[cli->uid % 4], cli->name, buff_tmp);
 								send_message_all(buff_out,cli->room);
 							}
 							else
@@ -458,11 +453,12 @@ void *handle_client(void *arg)
 							if(param)
 							{
 								/* Chop name if too long */
-								param[MAX_NAME_LENGTH]=0;
+								strncpy(buff_names,param,MAX_NAME_LENGTH);
+								buff_names[MAX_NAME_LENGTH]='\0';
 
 								/* Change the room */
 								char *old_room = strdup(cli->room);
-								strcpy(cli->room, param);
+								strcpy(cli->room, buff_names);
 								sprintf(buff_out, "\r\n\x1B[33mLEAVE %s[%s]\x1B[37m MOVED TO <%s>\r\n\r\n", colors[cli->uid % 4],cli->name, cli->room);
      							send_message_all(buff_out, old_room);
 
@@ -567,6 +563,7 @@ void *handle_client(void *arg)
                             }
                             break;
                         }
+
 						case 12: /* Away */
 						{
 							param = strtok(NULL, " ");
@@ -580,7 +577,7 @@ void *handle_client(void *arg)
 									strcat(buff_tmp, param);
 									param = strtok(NULL, " ");
 								}
-								buff_tmp[MAX_SHORT_MESSAGE_LENGTH]='\0';
+								buff_tmp[MAX_SHORT_MESSAGE_LENGTH+1]='\0';
 
 								sprintf(buff_out, "\r\n\x1B[33mAWAY %s[%s] %s\x1B[37m\r\n\r\n",colors[cli->uid % 4], cli->name, buff_tmp);
                                 send_message_all(buff_out,cli->room);
