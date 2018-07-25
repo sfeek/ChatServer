@@ -30,7 +30,7 @@
 #define KCYN  "\x1B[36m"
 #define KWHT  "\x1B[37m"
 
-#define MAX_COMPARES 14 /* Maximum number of compare strings */
+#define MAX_COMPARES 15 /* Maximum number of compare strings */
 #define MAX_COMPARE_LENGTH 10 /* Set for length of maximum compare string */
 #define MAX_NAME_LENGTH 32 /* Max name length */
 #define MAX_CLIENTS	100 /* Max number of clients */
@@ -209,8 +209,8 @@ void send_help(int connfd)
 	strcat(buff_out, "\x1B[33m\\quit\x1B[37m     Quit chatroom\r\n");
 	strcat(buff_out, "\x1B[33m\\me\x1B[37m       <message> Emote\r\n");
 	strcat(buff_out, "\x1B[33m\\ping\x1B[37m     Server test\r\n");
-	strcat(buff_out, "\x1B[33m\\nick\x1B[37m     <name> Change nickname\r\n");
-	strcat(buff_out, "\x1B[33m\\pm\x1B[37m       <name> <message> Send private message regardless of recipient room\r\n");
+	strcat(buff_out, "\x1B[33m\\nick\x1B[37m     <nickname> Change nickname\r\n");
+	strcat(buff_out, "\x1B[33m\\pm\x1B[37m       <nickname> <message> Send private message regardless of recipient room\r\n");
 	strcat(buff_out, "\x1B[33m\\who\x1B[37m      Show active clients\r\n");
 	strcat(buff_out, "\x1B[33m\\help\x1B[37m     Show this help screen\r\n");
 	strcat(buff_out, "\x1B[33m\\room\x1B[37m     <room_name> Move to another room or show who is in the current room\r\n");
@@ -218,6 +218,7 @@ void send_help(int connfd)
 	strcat(buff_out, "\x1B[33m\\math\x1B[37m     <expression> Evaluate a math expression\r\n");
 	strcat(buff_out, "\x1B[33m\\roll\x1B[37m     <die_sides> Roll dice\r\n");
 	strcat(buff_out, "\x1B[33m\\echo\x1B[37m     <on/off> Set local echo\r\n");
+	strcat(buff_out, "\x1B[33m\\bell\x1B[37m     <nickname> Ring Terminal Bell\r\n");
 	strcat(buff_out, "\x1B[33m\\away\x1B[37m     <short_message> Let others know your status. If no message, away status is cleared\r\n\r\n"); 
 
 	send_message_self(buff_out, connfd);
@@ -254,6 +255,7 @@ void *handle_client(void *arg)
 	strcpy(cmp[10],"\\echo");
 	strcpy(cmp[11],"\\roll");
 	strcpy(cmp[12],"\\away");
+	strcpy(cmp[13],"\\bell");
 
 	/* Add one to the client counter */
 	cli_count++;
@@ -431,7 +433,7 @@ void *handle_client(void *arg)
 								}
 								buff_tmp[MAX_SHORT_MESSAGE_LENGTH+1]='\0'; 
 
-								sprintf(buff_out, "%s*** %s %s ***\x1B[37m\r\n",colors[cli->uid % 4], cli->name, buff_tmp);
+								sprintf(buff_out, "\007%s*** %s %s ***\x1B[37m\r\n",colors[cli->uid % 4], cli->name, buff_tmp);
 								send_message_all(buff_out,cli->room);
 							}
 							else
@@ -591,13 +593,53 @@ void *handle_client(void *arg)
                             }
                             break;
                         }
+	
+						case 13: /* Bell */
+						{
+							param = strtok(NULL, " ");
+							
+							if(param)
+							{
+								/* Chop name if too long */
+								strncpy(buff_names,param,MAX_NAME_LENGTH);
+								buff_names[MAX_NAME_LENGTH]='\0';
+
+								/* Look up user ID */
+								int uid = -1;
+								int x;
+								for(x=0;x<MAX_CLIENTS;x++)
+								{
+									if(clients[x])
+									{
+										if (!strcicmp(clients[x]->name,buff_names)) uid = clients[x]->uid;
+									}
+								}
+
+								/* Check if a valid user was chosen */
+								if (uid == -1)
+								{
+									sprintf(buff_out, "\r\n\x1B[33mUNKNOWN USER\x1B[37m - [%s]\r\n\r\n", buff_names);
+									send_message_self(buff_out, cli->connfd);
+									break;
+								} 
+
+								/* Send the bell */
+								send_message_client("\007", uid);
+								send_message_self("\r\n\x1B[33mBELL SENT\x1B[37m\r\n\r\n", cli->connfd);
+							}
+							else
+							{
+								send_message_self("\r\n\x1B[33mUSER CANNOT BE NULL\x1B[37m\r\n\r\n", cli->connfd);
+							}
+							break;
+						}
 					}
 					break;
 				}
 			}
 
 			/* Look for bad command */
-			if (i>12) send_message_self("\r\n\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n\r\n", cli->connfd);
+			if (i>13) send_message_self("\r\n\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n\r\n", cli->connfd);
 			
 			/* Leave the loop if user chooses to quit */
 			if (quit) break;
