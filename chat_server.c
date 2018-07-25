@@ -624,7 +624,9 @@ void *handle_client(void *arg)
 								} 
 
 								/* Send the bell */
-								send_message_client("\007", uid);
+								sprintf(buff_out, "\007\x1B[33mBELL FROM %s<%s>[%s]\x1B[37m",colors[cli->uid % 4], cli->room, cli->name);
+									
+								send_message_client(buff_out, uid);
 								send_message_self("\r\n\x1B[33mBELL SENT\x1B[37m\r\n\r\n", cli->connfd);
 							}
 							else
