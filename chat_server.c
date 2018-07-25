@@ -52,7 +52,7 @@ typedef struct
 	char status[MAX_SHORT_MESSAGE_LENGTH+1];	/* User Status 0 = present, 1 = idle, 2 = away*/
 } client_t;
 
-client_t *clients[MAX_CLIENTS];
+static client_t *clients[MAX_CLIENTS];
 
 /* String compare case insensitive */
 int strcicmp(char const *a, char const *b)
@@ -228,9 +228,9 @@ void *handle_client(void *arg)
 {
 	char buff_out[MAX_BUFFER_LENGTH + 128];
 	char buff_in[MAX_BUFFER_LENGTH];
-    char buff_tmp[MAX_BUFFER_LENGTH + 128];
+	char buff_tmp[MAX_BUFFER_LENGTH + 128];
 	char buff_names[MAX_NAME_LENGTH+1];
-    char buff_banner[1500];
+	char buff_banner[1500];
 	int rlen;
 	char *cmp[MAX_COMPARES];
 	int i;
@@ -634,7 +634,8 @@ void *handle_client(void *arg)
 }
 
 /* Chat Server Main */
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[])
+{
 	int listenfd = 0, connfd = 0;
 	struct sockaddr_in serv_addr;
 	struct sockaddr_in cli_addr;
