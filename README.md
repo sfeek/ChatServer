@@ -14,10 +14,12 @@ Then start
 * Accept multiple clients (up to 100 by default)
 * Name and rename users
 * Send private messages
-* Allows for Multiple Rooms
+* Multiple Rooms
 * Perform basic math functions
 * Roll Dice
 * Emote
+* Mute
+* Ring Terminal Bell
 
 ## Chat commands
 
@@ -36,3 +38,5 @@ Then start
 | \me           | [message]             | Emote                               |
 | \roll         | [die_sides]           | Roll Dice                           |
 | \away         | [short_message]       | Set Away status                     |
+| \bell         | [nickname]            | Ring Terminal Bell                  |
+| \mute         | [nickname_list]       | Mute listed nicknames               |

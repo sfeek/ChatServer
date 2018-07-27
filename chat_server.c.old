@@ -30,7 +30,7 @@
 #define KCYN  "\x1B[36m"
 #define KWHT  "\x1B[37m"
 
-#define MAX_COMPARES 16 /* Maximum number of compare strings */
+#define MAX_COMPARES 15 /* Maximum number of compare strings */
 #define MAX_COMPARE_LENGTH 10 /* Set for length of maximum compare string */
 #define MAX_NAME_LENGTH 32 /* Max name length */
 #define MAX_CLIENTS	100 /* Max number of clients */
@@ -46,11 +46,10 @@ typedef struct
 	struct sockaddr_in addr;				/* Client remote address */
 	int connfd;								/* Connection file descriptor */
 	int uid;								/* Client unique identifier */
-	char name[MAX_NAME_LENGTH+1];			/* Client name */
+	char name[MAX_NAME_LENGTH+1];				/* Client name */
 	char room[MAX_NAME_LENGTH+1]; 			/* Client room */
 	int echo;								/* Echo status */
-	char status[MAX_SHORT_MESSAGE_LENGTH+1];	/* User Status */
-	char mute[MAX_SHORT_MESSAGE_LENGTH+1];	/* Mute List */
+	char status[MAX_SHORT_MESSAGE_LENGTH+1];	/* User Status 0 = present, 1 = idle, 2 = away*/
 } client_t;
 
 static client_t *clients[MAX_CLIENTS];
@@ -110,20 +109,14 @@ void queue_delete(int uid)
 }
 
 /* Send message to all clients in the same room */
-void send_message_all(char *s,char *room, char *name)
+void send_message_all(char *s,char *room)
 {
 	int i;
-	char cmpname[MAX_NAME_LENGTH+3];
-
-	strcpy(cmpname,"|");
-	strcat(cmpname,name);
-	strcat(cmpname,"|");
-
 	for(i=0;i<MAX_CLIENTS;i++)
 	{
 		if(clients[i])
 		{
-			if (!strcicmp(clients[i]->room,room) && strcicmp(clients[i]->mute,cmpname))
+			if (!strcicmp(clients[i]->room,room))
 			{
 				if (write(clients[i]->connfd, s, strlen(s))!=strlen(s)) continue;
 			}
@@ -132,21 +125,14 @@ void send_message_all(char *s,char *room, char *name)
 }
 
 /* Send message to all clients in the same room except yourself */
-void send_message_except_self(char *s,char *room,char *name,int uid)
+void send_message_except_self(char *s,char *room,int uid)
 {
 	int i;
-	char cmpname[MAX_NAME_LENGTH+3];
-
-	strcpy(cmpname,"|");
-	strcat(cmpname,name);
-	strcat(cmpname,"|");
-
-
 	for(i=0;i<MAX_CLIENTS;i++)
 	{
 		if(clients[i])
 		{
-			if (!strcicmp(clients[i]->room,room) && strcicmp(clients[i]->mute,cmpname))
+			if (!strcicmp(clients[i]->room,room))
 			{
 				if (clients[i]->uid != uid)
 				{
@@ -164,21 +150,14 @@ void send_message_self(const char *s, int connfd)
 }
 
 /* Send message to specific client, regardless of room */
-void send_message_client(char *s,char *name,int uid)
+void send_message_client(char *s, int uid)
 {
 	int i;
-	char cmpname[MAX_NAME_LENGTH+3];
-
-	strcpy(cmpname,"|");
-	strcat(cmpname,name);
-	strcat(cmpname,"|");
-
-
 	for(i=0;i<MAX_CLIENTS;i++)
 	{
 		if(clients[i])
 		{
-			if(clients[i]->uid == uid && strcicmp(clients[i]->mute,cmpname))
+			if(clients[i]->uid == uid)
 			{
 				if (write(clients[i]->connfd, s, strlen(s))!=strlen(s)) continue;
 			}
@@ -240,7 +219,6 @@ void send_help(int connfd)
 	strcat(buff_out, "\x1B[33m\\roll\x1B[37m     <die_sides> Roll dice\r\n");
 	strcat(buff_out, "\x1B[33m\\echo\x1B[37m     <on/off> Set local echo\r\n");
 	strcat(buff_out, "\x1B[33m\\bell\x1B[37m     <nickname> Ring Terminal Bell\r\n");
-	strcat(buff_out, "\x1B[33m\\mute\x1B[37m     <nickname_list> List of Nicknames to mute. Clear mute if the list is empty\r\n");
 	strcat(buff_out, "\x1B[33m\\away\x1B[37m     <short_message> Let others know your status. If no message, away status is cleared\r\n\r\n"); 
 
 	send_message_self(buff_out, connfd);
@@ -278,7 +256,6 @@ void *handle_client(void *arg)
 	strcpy(cmp[11],"\\roll");
 	strcpy(cmp[12],"\\away");
 	strcpy(cmp[13],"\\bell");
-	strcpy(cmp[14],"\\mute");
 
 	/* Add one to the client counter */
 	cli_count++;
@@ -304,7 +281,7 @@ void *handle_client(void *arg)
 	send_help(cli->connfd);
 	
 	sprintf(buff_out,"\r\n\r\n\x1B[33mJOIN, WELCOME\x1B[37m %s\r\n\r\n", cli->name);
-	send_message_all(buff_out,cli->room,cli->name);
+	send_message_all(buff_out,cli->room);
 
 	/* Receive input from client */
 	while((rlen = read(cli->connfd, buff_in, MAX_BUFFER_LENGTH - 2))> 0)
@@ -367,7 +344,7 @@ void *handle_client(void *arg)
 								strcpy(cli->name, buff_names);
 								sprintf(buff_out, "\r\n\x1B[33mRENAME\x1B[37m %s TO %s\r\n\r\n", old_name, cli->name);
 								free(old_name);
-								send_message_all(buff_out,cli->room,cli->name);
+								send_message_all(buff_out,cli->room);
 							}
 							else
 							{
@@ -417,9 +394,7 @@ void *handle_client(void *arg)
 										param = strtok(NULL, " ");
 									}
 									strcat(buff_out, "\r\n");
-									send_message_client(buff_out,cli->name,uid);
-									send_message_self("\r\n\x1B[33mPM SENT\x1B[37m\r\n\r\n", cli->connfd);
-
+									send_message_client(buff_out, uid);
 								}
 								else
 								{
@@ -459,7 +434,7 @@ void *handle_client(void *arg)
 								buff_tmp[MAX_SHORT_MESSAGE_LENGTH+1]='\0'; 
 
 								sprintf(buff_out, "\007%s*** %s %s ***\x1B[37m\r\n",colors[cli->uid % 4], cli->name, buff_tmp);
-								send_message_all(buff_out,cli->room,cli->name);
+								send_message_all(buff_out,cli->room);
 							}
 							else
 							{
@@ -487,10 +462,10 @@ void *handle_client(void *arg)
 								char *old_room = strdup(cli->room);
 								strcpy(cli->room, buff_names);
 								sprintf(buff_out, "\r\n\x1B[33mLEAVE %s[%s]\x1B[37m MOVED TO <%s>\r\n\r\n", colors[cli->uid % 4],cli->name, cli->room);
-     							send_message_all(buff_out, old_room,cli->name);
+     							send_message_all(buff_out, old_room);
 
 								sprintf(buff_out, "\r\n\x1B[33mJOIN, WELCOME TO \x1B[37m<%s> %s[%s]\x1B[37m\r\n\r\n",cli->room,colors[cli->uid % 4], cli->name);
-								send_message_all(buff_out, cli->room,cli->name);
+								send_message_all(buff_out, cli->room);
 								free(old_room);
 							}
 							else
@@ -582,7 +557,7 @@ void *handle_client(void *arg)
                                 strcat(buff_out, roll_out);
                                 strcat(buff_out, "\x1B[37m\r\n\r\n");
                                 
-								send_message_all(buff_out,cli->room,cli->name);
+								send_message_all(buff_out,cli->room);
                             }
                             else
                             {
@@ -607,13 +582,13 @@ void *handle_client(void *arg)
 								buff_tmp[MAX_SHORT_MESSAGE_LENGTH+1]='\0';
 
 								sprintf(buff_out, "\r\n\x1B[33mAWAY %s[%s] %s\x1B[37m\r\n\r\n",colors[cli->uid % 4], cli->name, buff_tmp);
-                                send_message_all(buff_out,cli->room,cli->name);
+                                send_message_all(buff_out,cli->room);
 								strcpy(cli->status,buff_tmp);
                             }
                             else
                             {
                                 sprintf(buff_out, "\r\n\x1B[33mAWAY %s[%s] IS AVAILABLE\x1B[37m\r\n\r\n",colors[cli->uid % 4], cli->name);
-								send_message_all(buff_out,cli->room,cli->name);
+								send_message_all(buff_out,cli->room);
 								strcpy(cli->status,"AVAILABLE");
                             }
                             break;
@@ -649,9 +624,9 @@ void *handle_client(void *arg)
 								} 
 
 								/* Send the bell */
-								sprintf(buff_out, "\007\r\n\x1B[33mBELL FROM %s<%s>[%s]\x1B[37m\r\n\r\n",colors[cli->uid % 4], cli->room, cli->name);
+								sprintf(buff_out, "\007\x1B[33mBELL FROM %s<%s>[%s]\x1B[37m",colors[cli->uid % 4], cli->room, cli->name);
 									
-								send_message_client(buff_out, cli->name, uid);
+								send_message_client(buff_out, uid);
 								send_message_self("\r\n\x1B[33mBELL SENT\x1B[37m\r\n\r\n", cli->connfd);
 							}
 							else
@@ -660,41 +635,13 @@ void *handle_client(void *arg)
 							}
 							break;
 						}
-
-						case 14: /* Mute */
-						{
-							param = strtok(NULL, " ");
-                            
-							if(param)
-                            {
-                               	buff_tmp[0]='\0';
-								while(param != NULL)
-								{
-									strcat(buff_tmp, "|");
-									strcat(buff_tmp, param);
-									strcat(buff_tmp, "|");
-									param = strtok(NULL, " ");
-								}
-								buff_tmp[MAX_SHORT_MESSAGE_LENGTH+1]='\0';
-
-								strcpy(cli->mute,buff_tmp);
-                            }
-							else
-							{
-								strcpy(cli->mute,"");
-							}
-
-                       		send_message_self("\r\n\x1B[33mMUTE UPDATED\x1B[37m\r\n\r\n", cli->connfd);
-				     		break;
-                        }
-	
 					}
 					break;
 				}
 			}
 
 			/* Look for bad command */
-			if (i>14) send_message_self("\r\n\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n\r\n", cli->connfd);
+			if (i>13) send_message_self("\r\n\x1B[33mUNKNOWN COMMAND\x1B[37m\r\n\r\n", cli->connfd);
 			
 			/* Leave the loop if user chooses to quit */
 			if (quit) break;
@@ -704,16 +651,16 @@ void *handle_client(void *arg)
 			/* No Command, Send as message */
 			sprintf(buff_out, "%s<%s>[%s]\x1B[37m %s\r\n", colors[cli->uid % 4], cli->room, cli->name, buff_in);
 			if (cli->echo) 
-				send_message_all(buff_out,cli->room,cli->name);
+				send_message_all(buff_out,cli->room);
 			else	
-				send_message_except_self(buff_out,cli->room,cli->name,cli->uid);
+				send_message_except_self(buff_out,cli->room,cli->uid);
 		}
 	}
 
 	/* Close connection */
 	close(cli->connfd);
 	sprintf(buff_out, "\r\n\x1B[33mLEAVE, BYE\x1B[37m %s\r\n\r\n", cli->name);
-	send_message_all(buff_out,cli->room,cli->name);
+	send_message_all(buff_out,cli->room);
 
 	/* Free comparison strings */
 	for(i=0; i<MAX_COMPARES; i++)
